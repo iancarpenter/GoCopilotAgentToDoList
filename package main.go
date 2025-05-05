@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -30,7 +30,7 @@ func loadTodos() {
 		return // No file yet
 	}
 	defer file.Close()
-	data, _ := ioutil.ReadAll(file)
+	data, _ := io.ReadAll(file)
 	json.Unmarshal(data, &todos)
 	// Set nextID
 	for _, t := range todos {
@@ -43,7 +43,7 @@ func loadTodos() {
 // saveTodos saves the current todo list to the JSON file.
 func saveTodos() {
 	data, _ := json.MarshalIndent(todos, "", "  ")
-	ioutil.WriteFile(dbFile, data, 0644)
+	os.WriteFile(dbFile, data, 0644)
 }
 
 // main is the entry point of the application. It sets up HTTP handlers and starts the server.
