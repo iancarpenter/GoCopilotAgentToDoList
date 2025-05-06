@@ -8,5 +8,10 @@
     "ID": 2,
     "Task": "drink more coffee",
     "Done": false
+  },
+  {
+    "ID": 3,
+    "Task": "eat more fruit",
+    "Done": false
   }
 ]
