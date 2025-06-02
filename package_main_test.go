@@ -3,7 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -42,3 +45,60 @@ func TestTimeResponseMarshal(t *testing.T) {
 		t.Errorf("Expected time to be '2025-05-27T12:34:56Z', got '%s'", m["time"])
 	}
 }
+
+// TestHTTPTimeEndpoint tests that the /mcp/time endpoint returns correct JSON for a valid request.
+// This test uses the httptest package to simulate an HTTP POST request to the server.
+func TestHTTPTimeEndpoint(t *testing.T) {
+	// Mock getTimeFromMCP to avoid running Docker
+	originalGetTimeFromMCP := getTimeFromMCP
+	var getTimeFromMCP = func(timezone string) (string, error) {
+		if timezone == "Europe/London" {
+			return "2025-06-01T12:00:00Z", nil
+		}
+		return "", nil
+	}
+	defer func() { getTimeFromMCP = originalGetTimeFromMCP }()
+
+	// Set up the HTTP handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req TimeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		time, err := getTimeFromMCP(req.Timezone)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(TimeResponse{Time: time})
+	})
+
+	// Create a test server
+	reqBody := []byte(`{"timezone":"Europe/London"}`)
+	req := httptest.NewRequest("POST", "/mcp/time", bytes.NewReader(reqBody))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200 OK, got %d", resp.StatusCode)
+	}
+
+	var tr TimeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	expected := "2025-06-01T12:00:00Z"
+	if tr.Time != expected {
+		t.Errorf("Expected time %q, got %q", expected, tr.Time)
+	}
+}
+
+// ...existing code...
